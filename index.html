@@ -3,32 +3,65 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球地理資訊系統 - 繁體中文專業版</title>
+    <title>互動世界地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #001529; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; }
-        
-        /* 地圖亮度與對比度強化 */
-        .leaflet-tile-pane {
-            filter: brightness(1.15) contrast(1.1);
-        }
-
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
 
-        /* 滑鼠懸停資訊框樣式 - 繁體中文優化 */
-        .custom-tooltip {
-            background: rgba(255, 255, 255, 0.98);
-            border: 2px solid #3498db;
-            border-radius: 10px;
-            padding: 12px;
-            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
-            pointer-events: none;
+        /* 資訊卡樣式 (點擊國家後彈出) */
+        .info-card {
+            max-width: 280px;
+            text-align: left;
+            padding: 5px;
         }
-        .tooltip-content { width: 190px; text-align: center; }
-        .tooltip-content h3 { margin: 0 0 8px 0; color: #2c3e50; font-size: 18px; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
-        .tooltip-content img { width: 110px; border: 1px solid #eee; margin-bottom: 8px; border-radius: 4px; }
-        .tooltip-content p { margin: 4px 0; font-size: 14px; color: #333; text-align: left; line-height: 1.5; }
-        .data-label { color: #2980b9; font-weight: bold; }
+        .info-card h3 {
+            margin-top: 5px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            font-size: 1.3em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        .info-card img.flag {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .info-card p {
+            margin: 5px 0;
+            font-size: 0.9em;
+            color: #555;
+            line-height: 1.5;
+        }
+        .info-card a.wiki-link {
+            display: block;
+            background-color: #3498db;
+            color: white !important; /* !important 確保覆蓋 Leaflet 預設樣式 */
+            padding: 8px 10px;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .info-card a.wiki-link:hover {
+            background-color: #2980b9;
+        }
+
+        /* Leaflet 彈出視窗調整 */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 1px; /* 調整內邊距 */
+        }
+        .leaflet-popup-content {
+            margin: 0;
+        }
+        .leaflet-popup-tip {
+            background: white;
+        }
     </style>
 </head>
 <body>
@@ -37,89 +70,93 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. 初始化地圖與邊界限制
-        const southWest = L.latLng(-85, -180);
-        const northEast = L.latLng(85, 180);
-        const bounds = L.latLngBounds(southWest, northEast);
-
+        // 1. 初始化地圖：設定地圖中心、縮放和範圍限制
         const map = L.map('map', {
-            center: [20, 0],
-            zoom: 3,
-            minZoom: 2,
-            maxBounds: bounds,
-            maxBoundsViscosity: 1.0,
-            worldCopyJump: false
+            center: [20, 0], // 地圖中心點 (緯度, 經度)
+            zoom: 3,         // 初始縮放級別
+            maxBounds: [[-90, -180], [90, 180]], // 限制地圖邊界，防止重複滾動
+            maxBoundsViscosity: 1.0, // 邊界彈性
+            zoomControl: false,      // 隱藏縮放按鈕，讓畫面更簡潔
+            worldCopyJump: false     // 防止地圖在左右方向重複顯示
         });
 
-        // 2. 載入衛星底圖
+        // 2. 載入衛星底圖：使用 Esri 提供的穩定衛星影像服務
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            noWrap: true,
-            bounds: bounds
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EBP, and the GIS User Community'
         }).addTo(map);
 
-        // 3. 載入全球邊界數據
-        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+        // 3. 載入世界各國的地理邊界數據
+        // 這個 GeoJSON 檔案包含了各國的形狀和名稱 (NAME 欄位)
+        fetch('https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson')
             .then(res => res.json())
-            .then(data => {
-                L.geoJSON(data, {
+            .then(geojsonData => {
+                L.geoJSON(geojsonData, {
                     style: {
-                        color: "rgba(255,255,255,0.7)",
-                        weight: 1,
-                        fillColor: "#3498db",
-                        fillOpacity: 0.05
+                        color: "#fff",          // 國界線顏色 (白色)
+                        weight: 0.5,            // 國界線粗細
+                        fillColor: "#3498db",   // 填充顏色 (藍色)
+                        fillOpacity: 0.1        // 填充透明度 (平時微透明)
                     },
                     onEachFeature: function (feature, layer) {
-                        // 取得原始英文名稱作為查詢 Key
-                        const engName = feature.properties.ADMIN || feature.properties.name;
-                        
-                        // 設定「碰到」觸發
-                        layer.on('mouseover', async function (e) {
-                            // 國家變色高亮
-                            this.setStyle({ fillOpacity: 0.35, weight: 2, color: "#f1c40f" });
+                        // 從 GeoJSON 數據中獲取國家名稱 (使用 NAME 欄位，它通常最可靠)
+                        const countryName = feature.properties.NAME;
+
+                        // 設定滑鼠互動效果
+                        layer.on('mouseover', function() {
+                            this.setStyle({ fillOpacity: 0.4 }); // 滑鼠移入時變亮
+                            this.bindTooltip(countryName).openTooltip(); // 顯示國家名稱提示
+                        });
+                        layer.on('mouseout', function() {
+                            this.setStyle({ fillOpacity: 0.1 }); // 滑鼠移出時恢復
+                        });
+
+                        // 設定點擊事件：點擊國家後彈出資訊卡
+                        layer.on('click', async function(e) {
+                            // 點擊後，地圖視角會自動移動到該國家
+                            map.fitBounds(e.target.getBounds());
+
+                            // 顯示一個「載入中」的彈出視窗
+                            const popup = L.popup({ className: 'info-card' })
+                                .setLatLng(e.latlng)
+                                .setContent(`<div><h3>${countryName}</h3><p>正在載入詳細資訊...</p></div>`)
+                                .openOn(map);
 
                             try {
-                                // 抓取國家詳細資料 (繁體中文轉換)
-                                const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(engName)}?fullText=true`);
-                                const cData = await res.json();
-                                const c = cData[0];
-                                
-                                // 優先提取繁體中文翻譯 (zho)
-                                const zhName = c.translations.zho ? c.translations.zho.common : engName;
-                                const capitalZh = c.capital ? c.capital[0] : '無資料';
+                                // 同時發送請求獲取國家的基本資料 (國旗、首都、人口) 和維基百科簡介
+                                const [countryDataRes, wikiSummaryRes] = await Promise.all([
+                                    fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fullText=true`),
+                                    fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(countryName)}`)
+                                ]);
 
+                                const countryData = (await countryDataRes.json())[0];
+                                const wikiSummary = await wikiSummaryRes.json();
+
+                                // 格式化彈出視窗的內容，顯示所有獲取的資訊
                                 const content = `
-                                    <div class="tooltip-content">
-                                        <h3>${zhName}</h3>
-                                        <img src="${c.flags.png}">
-                                        <p><span class="data-label">📍 首都：</span>${capitalZh}</p>
-                                        <p><span class="data-label">👥 人口：</span>${c.population.toLocaleString()} 人</p>
-                                        <p style="color:#e67e22; font-size:12px; margin-top:5px;">(點擊地圖可查看完整介紹)</p>
+                                    <div class="info-card">
+                                        <h3>${countryData.translations.zho ? countryData.translations.zho.common : countryName}</h3>
+                                        <img src="${countryData.flags.png}" alt="${countryName}國旗" class="flag">
+                                        <p><b>首都：</b> ${countryData.capital ? countryData.capital[0] : '無資料'}</p>
+                                        <p><b>人口：</b> ${countryData.population ? countryData.population.toLocaleString() : '無資料'} 人</p>
+                                        <p>${wikiSummary.extract ? wikiSummary.extract.substring(0, 150) + '...' : '點擊下方連結查看詳細介紹。'}</p>
+                                        <a href="https://zh.wikipedia.org/wiki/${encodeURIComponent(countryData.translations.zho ? countryData.translations.zho.common : countryName)}" target="_blank" class="wiki-link">閱讀維基百科全文</a>
                                     </div>
                                 `;
-
-                                layer.bindTooltip(content, {
-                                    sticky: true, // 跟隨滑鼠移動
-                                    className: 'custom-tooltip',
-                                    opacity: 1,
-                                    direction: 'top'
-                                }).openTooltip();
-
-                            } catch (err) {
-                                layer.bindTooltip(engName).openTooltip();
+                                popup.setContent(content); // 更新彈出視窗內容
+                            } catch (error) {
+                                // 如果資料獲取失敗，提供一個直接連結到維基百科
+                                popup.setContent(`
+                                    <div class="info-card">
+                                        <h3>${countryName}</h3>
+                                        <p>抱歉，無法自動獲取該國詳細資訊。</p>
+                                        <a href="https://zh.wikipedia.org/wiki/${encodeURIComponent(countryName)}" target="_blank" class="wiki-link">直接前往維基百科查看</a>
+                                    </div>
+                                `);
+                                console.error('Error fetching country data:', error);
                             }
                         });
-
-                        // 滑鼠移開還原
-                        layer.on('mouseout', function () {
-                            this.setStyle({ fillOpacity: 0.05, weight: 1, color: "rgba(255,255,255,0.7)" });
-                        });
-
-                        // 點擊直接開啟繁體維基百科
-                        layer.on('click', function () {
-                            window.open(`https://zh.wikipedia.org/zh-tw/${encodeURIComponent(engName)}`, '_blank');
-                        });
                     }
-                }).addTo(map);
+                }).addTo(map); // 將 GeoJSON 圖層添加到地圖
             });
     </script>
 </body>
