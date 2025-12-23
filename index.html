@@ -2,132 +2,39 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>互動衛星地圖 - 完整介紹版</title>
+    <title>世界地圖入口</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
-        #layout { display: flex; height: 100vh; width: 100vw; }
-        #map { flex: 1; background: #001529; }
-        
-        /* 側邊介紹面板 */
-        #side-info {
-            width: 400px;
-            background: #ffffff;
-            z-index: 2000;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            border-left: 2px solid #3498db;
-            transition: all 0.3s;
-        }
-
-        .welcome-screen { padding: 40px; text-align: center; color: #7f8c8d; }
-        .content-screen { padding: 25px; display: none; }
-        .flag-box { width: 100%; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); margin-bottom: 20px; }
-        h1 { color: #2c3e50; margin: 0 0 10px 0; font-size: 2.2em; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
-        .detail-row { margin: 12px 0; font-size: 16px; color: #34495e; border-bottom: 1px solid #eee; padding-bottom: 8px; }
-        .detail-row b { color: #2980b9; width: 80px; display: inline-block; }
-        .history-box { background: #f8f9fa; padding: 15px; border-radius: 8px; line-height: 1.8; color: #444; margin-top: 20px; }
-        
-        /* 地圖標籤 */
-        .leaflet-tooltip { background: #000 !important; color: #fff !important; border: 1px solid #00d4ff !important; font-size: 14px; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+        #map { height: 100vh; width: 100%; }
+        .label { background: #000; color: #fff; border: 1px solid #00d4ff; padding: 5px; border-radius: 4px; }
     </style>
 </head>
 <body>
-
-<div id="layout">
     <div id="map"></div>
-    <div id="side-info">
-        <div id="welcome" class="welcome-screen">
-            <h2 style="color:#2c3e50">🌍 世界地圖探索器</h2>
-            <p>請在地圖上點擊任何國家</p>
-            <p>即可在此處查看詳細的國旗、人口、首都與歷史簡介</p>
-        </div>
-        <div id="content" class="content-screen">
-            <img id="c-flag" class="flag-box" src="">
-            <h1 id="c-name">國家名稱</h1>
-            <div class="detail-row"><b>首都：</b><span id="c-capital"></span></div>
-            <div class="detail-row"><b>人口：</b><span id="c-pop"></span></div>
-            <div class="detail-row"><b>區域：</b><span id="c-region"></span></div>
-            <div class="history-box">
-                <h3 style="margin-top:0">📜 國家簡介</h3>
-                <div id="c-wiki">載入中...</div>
-            </div>
-            <a id="c-link" href="#" target="_blank" style="display:block; margin-top:20px; color:#3498db; text-decoration:none; font-weight:bold;">👉 前往維基百科閱讀全文</a>
-        </div>
-    </div>
-</div>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const map = L.map('map', { center: [20, 0], zoom: 3, zoomControl: false });
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-<script>
-    // 國名翻譯對照表 (確保介紹不會出現 Undefined)
-    const translator = {
-        "Taiwan": "臺灣", "Japan": "日本", "South Korea": "韓國", "China": "中國",
-        "United States of America": "美國", "USA": "美國", "France": "法國",
-        "Germany": "德國", "United Kingdom": "英國", "Italy": "義大利", "Russia": "俄羅斯"
-    };
-
-    // 1. 初始化地圖
-    const map = L.map('map', { center: [20, 10], zoom: 3, worldCopyJump: false });
-
-    // 2. 衛星底圖 (最穩定來源)
-    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
-
-    // 3. 載入各國數據與介紹邏輯
-    fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-        .then(res => res.json())
-        .then(data => {
-            L.geoJSON(data, {
-                style: { color: "rgba(255,255,255,0.4)", weight: 1, fillOpacity: 0 },
-                onEachFeature: function (feature, layer) {
-                    const engName = feature.properties.ADMIN;
-                    const zhName = translator[engName] || engName;
-
-                    layer.on('mouseover', function() {
-                        this.setStyle({ fillColor: "#3498db", fillOpacity: 0.3 });
-                        this.bindTooltip(zhName, { sticky: true }).openTooltip();
-                    });
-
-                    layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0 }); });
-
-                    // 點擊後，右側面板顯示「介紹」
-                    layer.on('click', function(e) {
-                        map.fitBounds(e.target.getBounds());
-                        fetchIntro(engName, zhName);
-                    });
-                }
-            }).addTo(map);
-        });
-
-    async function fetchIntro(engName, zhName) {
-        document.getElementById('welcome').style.display = 'none';
-        document.getElementById('content').style.display = 'block';
-        document.getElementById('c-name').innerText = zhName;
-        document.getElementById('c-wiki').innerText = "正在蒐集該國資訊...";
-
-        try {
-            // 同時抓取國旗與百科介紹
-            const [countryRes, wikiRes] = await Promise.all([
-                fetch(`https://restcountries.com/v3.1/name/${engName}?fullText=true`),
-                fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(zhName)}`)
-            ]);
-
-            const countryData = (await countryRes.json())[0];
-            const wikiData = await wikiRes.json();
-
-            // 更新面板內容
-            document.getElementById('c-flag').src = countryData.flags.png;
-            document.getElementById('c-capital').innerText = countryData.capital ? countryData.capital[0] : "無";
-            document.getElementById('c-pop').innerText = countryData.population.toLocaleString() + " 人";
-            document.getElementById('c-region').innerText = countryData.subregion || "無";
-            document.getElementById('c-wiki').innerText = wikiData.extract || "目前暫無詳細文字介紹。";
-            document.getElementById('c-link').href = `https://zh.wikipedia.org/wiki/${encodeURIComponent(zhName)}`;
-
-        } catch (err) {
-            document.getElementById('c-wiki').innerText = "抱歉，無法從伺服器取得詳細介紹，請點擊連結查看。";
-        }
-    }
-</script>
+        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+            .then(res => res.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: { color: "white", weight: 0.5, fillOpacity: 0 },
+                    onEachFeature: function (feature, layer) {
+                        const name = feature.properties.ADMIN;
+                        layer.on('mouseover', function() {
+                            this.setStyle({ fillColor: "#00d4ff", fillOpacity: 0.3 });
+                        });
+                        layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0 }); });
+                        layer.on('click', function() {
+                            // 點擊後直接跳轉到介紹頁，並告訴那一頁我們點了誰
+                            window.location.href = `detail.html?country=${encodeURIComponent(name)}`;
+                        });
+                    }
+                }).addTo(map);
+            });
+    </script>
 </body>
 </html>
