@@ -2,37 +2,125 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>極光地理百科 - AI 專業定製版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全球地理資訊系統 - 繁體中文專業版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #001529; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; }
         
-        /* 地圖濾鏡：強化對比度、亮度與飽和度，營造高科技感 */
+        /* 地圖亮度與對比度強化 */
         .leaflet-tile-pane {
-            filter: brightness(1.2) contrast(1.1) saturate(1.1) hue-rotate(-5deg);
+            filter: brightness(1.15) contrast(1.1);
         }
 
-        #map { height: 100vh; width: 100%; background: #000; }
+        #map { height: 100vh; width: 100%; }
 
-        /* 資訊框樣式：磨砂玻璃效果 (Glassmorphism) */
+        /* 滑鼠懸停資訊框樣式 - 繁體中文優化 */
         .custom-tooltip {
-            background: rgba(255, 255, 255, 0.9);
-            backdrop-filter: blur(10px);
-            border: 1px solid rgba(255, 255, 255, 0.3);
-            border-left: 5px solid #00d4ff;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+            background: rgba(255, 255, 255, 0.98);
+            border: 2px solid #3498db;
+            border-radius: 10px;
+            padding: 12px;
+            box-shadow: 0 8px 20px rgba(0,0,0,0.4);
             pointer-events: none;
         }
-        .tooltip-content { width: 200px; }
-        .tooltip-content h3 { margin: 0 0 10px 0; color: #1a1a1a; font-size: 20px; letter-spacing: 1px; }
-        .tooltip-content img { width: 100%; height: auto; border-radius: 6px; margin-bottom: 10px; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
-        .tooltip-content p { margin: 6px 0; font-size: 14px; color: #444; display: flex; justify-content: space-between; }
-        .data-val { font-weight: bold; color: #007aff; }
-        .hint { color: #888; font-size: 11px; text-align: center; margin-top: 10px; border-top: 1px solid #eee; padding-top: 5px; }
+        .tooltip-content { width: 190px; text-align: center; }
+        .tooltip-content h3 { margin: 0 0 8px 0; color: #2c3e50; font-size: 18px; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        .tooltip-content img { width: 110px; border: 1px solid #eee; margin-bottom: 8px; border-radius: 4px; }
+        .tooltip-content p { margin: 4px 0; font-size: 14px; color: #333; text-align: left; line-height: 1.5; }
+        .data-label { color: #2980b9; font-weight: bold; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        // 1. 初始化地圖與邊界限制
+        const southWest = L.latLng(-85, -180);
+        const northEast = L.latLng(85, 180);
+        const bounds = L.latLngBounds(southWest, northEast);
+
+        const map = L.map('map', {
+            center: [20, 0],
+            zoom: 3,
+            minZoom: 2,
+            maxBounds: bounds,
+            maxBoundsViscosity: 1.0,
+            worldCopyJump: false
+        });
+
+        // 2. 載入衛星底圖
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            noWrap: true,
+            bounds: bounds
+        }).addTo(map);
+
+        // 3. 載入全球邊界數據
+        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
+            .then(res => res.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: {
+                        color: "rgba(255,255,255,0.7)",
+                        weight: 1,
+                        fillColor: "#3498db",
+                        fillOpacity: 0.05
+                    },
+                    onEachFeature: function (feature, layer) {
+                        // 取得原始英文名稱作為查詢 Key
+                        const engName = feature.properties.ADMIN || feature.properties.name;
+                        
+                        // 設定「碰到」觸發
+                        layer.on('mouseover', async function (e) {
+                            // 國家變色高亮
+                            this.setStyle({ fillOpacity: 0.35, weight: 2, color: "#f1c40f" });
+
+                            try {
+                                // 抓取國家詳細資料 (繁體中文轉換)
+                                const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(engName)}?fullText=true`);
+                                const cData = await res.json();
+                                const c = cData[0];
+                                
+                                // 優先提取繁體中文翻譯 (zho)
+                                const zhName = c.translations.zho ? c.translations.zho.common : engName;
+                                const capitalZh = c.capital ? c.capital[0] : '無資料';
+
+                                const content = `
+                                    <div class="tooltip-content">
+                                        <h3>${zhName}</h3>
+                                        <img src="${c.flags.png}">
+                                        <p><span class="data-label">📍 首都：</span>${capitalZh}</p>
+                                        <p><span class="data-label">👥 人口：</span>${c.population.toLocaleString()} 人</p>
+                                        <p style="color:#e67e22; font-size:12px; margin-top:5px;">(點擊地圖可查看完整介紹)</p>
+                                    </div>
+                                `;
+
+                                layer.bindTooltip(content, {
+                                    sticky: true, // 跟隨滑鼠移動
+                                    className: 'custom-tooltip',
+                                    opacity: 1,
+                                    direction: 'top'
+                                }).openTooltip();
+
+                            } catch (err) {
+                                layer.bindTooltip(engName).openTooltip();
+                            }
+                        });
+
+                        // 滑鼠移開還原
+                        layer.on('mouseout', function () {
+                            this.setStyle({ fillOpacity: 0.05, weight: 1, color: "rgba(255,255,255,0.7)" });
+                        });
+
+                        // 點擊直接開啟繁體維基百科
+                        layer.on('click', function () {
+                            window.open(`https://zh.wikipedia.org/zh-tw/${encodeURIComponent(engName)}`, '_blank');
+                        });
+                    }
+                }).addTo(map);
+            });
+    </script>
+</body>
+</html>
