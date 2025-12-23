@@ -3,33 +3,56 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球地理資訊系統 - 繁體百科版</title>
+    <title>全球地理資訊系統 - 繁體極致卡片版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #001a33; font-family: "Microsoft JhengHei", sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #001a33; font-family: "Microsoft JhengHei", "PingFang TC", sans-serif; }
         #map { height: 100vh; width: 100%; }
 
         /* 地圖增亮 */
-        .leaflet-tile-pane { filter: brightness(1.2) contrast(1.1); }
+        .leaflet-tile-pane { filter: brightness(1.15) contrast(1.1); }
 
-        /* 資訊卡片：寬度稍微增加以容納更多資訊 */
+        /* 資訊小卡片樣式 */
         .custom-tooltip {
             background: rgba(255, 255, 255, 0.98);
-            border: 2px solid #3498db;
-            border-radius: 12px;
-            padding: 15px;
-            box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+            border: none;
+            border-radius: 16px;
+            padding: 0;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.5);
             pointer-events: none;
+            overflow: hidden;
         }
-        .tooltip-content { width: 220px; text-align: center; }
-        .tooltip-content h3 { margin: 0 0 10px 0; color: #2c3e50; font-size: 20px; border-bottom: 2px solid #3498db; padding-bottom: 5px; font-weight: bold; }
-        .tooltip-content img { width: 100%; height: auto; border: 1px solid #ddd; margin-bottom: 12px; border-radius: 6px; }
+        .card-header {
+            background: #3498db;
+            color: white;
+            padding: 12px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+        .card-body { padding: 15px; width: 240px; }
+        .card-body img { width: 100%; border-radius: 8px; margin-bottom: 12px; box-shadow: 0 4px 8px rgba(0,0,0,0.1); }
         
-        /* 資訊條目樣式 */
-        .info-item { margin: 6px 0; font-size: 14px; color: #333; text-align: left; display: flex; justify-content: space-between; border-bottom: 1px dashed #eee; padding-bottom: 2px; }
-        .data-label { font-weight: bold; color: #2980b9; }
-        .data-value { color: #2c3e50; font-weight: 500; }
-        .hint { color: #e67e22; font-size: 11px; margin-top: 10px; display: block; font-weight: bold; }
+        /* 網格小卡片介紹 */
+        .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .grid-item {
+            background: #f8f9fa;
+            border-radius: 8px;
+            padding: 8px;
+            text-align: center;
+            border: 1px solid #eee;
+        }
+        .grid-label { font-size: 11px; color: #7f8c8d; display: block; margin-bottom: 3px; }
+        .grid-value { font-size: 13px; color: #2c3e50; font-weight: bold; }
+        
+        .wiki-hint {
+            display: block;
+            text-align: center;
+            font-size: 11px;
+            color: #bdc3c7;
+            margin-top: 12px;
+        }
     </style>
 </head>
 <body>
@@ -40,75 +63,76 @@
     <script>
         const bounds = L.latLngBounds(L.latLng(-85, -180), L.latLng(85, 180));
         const map = L.map('map', {
-            center: [25, 10],
-            zoom: 3,
-            minZoom: 2,
-            maxBounds: bounds,
-            maxBoundsViscosity: 1.0,
-            worldCopyJump: false,
-            zoomControl: false
+            center: [25, 10], zoom: 3, minZoom: 2,
+            maxBounds: bounds, maxBoundsViscosity: 1.0,
+            worldCopyJump: false, zoomControl: false
         });
 
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            noWrap: true,
-            bounds: bounds
+            noWrap: true, bounds: bounds
         }).addTo(map);
+
+        // 繁體中文強制校正表 (針對 API 常見簡體字進行暴力替換)
+        const toTraditional = (str) => {
+            if (!str) return "無資訊";
+            return str.replace(/国/g, '國').replace(/台/g, '臺').replace(/湾/g, '灣').replace(/区/g, '區')
+                      .replace(/义/g, '義').replace(/兰/g, '蘭').replace(/马/g, '馬').replace(/亚/g, '亞')
+                      .replace(/东/g, '東').replace(/西/g, '西').replace(/南/g, '南').replace(/北/g, '北')
+                      .replace(/联/g, '聯').replace(/门/g, '門').replace(/总/g, '總').replace(/发/g, '發');
+        };
 
         const geojsonUrl = 'https://cdn.jsdelivr.net/gh/datasets/geo-countries@master/data/countries.geojson';
 
-        fetch(geojsonUrl)
-            .then(res => res.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    style: { color: "rgba(255,255,255,0.6)", weight: 1, fillColor: "#3498db", fillOpacity: 0.05 },
-                    onEachFeature: function (feature, layer) {
-                        const engName = feature.properties.ADMIN || feature.properties.name;
+        fetch(geojsonUrl).then(res => res.json()).then(data => {
+            L.geoJSON(data, {
+                style: { color: "rgba(255,255,255,0.6)", weight: 1, fillColor: "#3498db", fillOpacity: 0.05 },
+                onEachFeature: function (feature, layer) {
+                    const engName = feature.properties.ADMIN || feature.properties.name;
 
-                        layer.on('mouseover', async function (e) {
-                            this.setStyle({ fillOpacity: 0.35, weight: 2, color: "#f1c40f" });
+                    layer.on('mouseover', async function (e) {
+                        this.setStyle({ fillOpacity: 0.3, weight: 2, color: "#f1c40f" });
 
-                            try {
-                                const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(engName)}?fullText=true`);
-                                const cData = await res.json();
-                                const c = cData[0];
-                                
-                                // 繁體中文名處理
-                                let zhName = c.translations?.zho?.common || c.translations?.zho?.official || engName;
-                                // 修正常見簡體字
-                                zhName = zhName.replace(/国/g, '國').replace(/台/g, '臺').replace(/湾/g, '灣').replace(/区/g, '區');
+                        try {
+                            const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(engName)}?fullText=true`);
+                            const cData = await res.json();
+                            const c = cData[0];
+                            
+                            // 100% 繁體化處理
+                            let zhName = toTraditional(c.translations?.zho?.common || engName);
+                            let capital = toTraditional(c.capital ? c.capital[0] : '無');
+                            let region = toTraditional(c.region);
+                            let currencies = c.currencies ? Object.values(c.currencies).map(curr => curr.symbol || curr.name).join(', ') : '無';
 
-                                const capital = c.capital ? c.capital[0] : '無';
-                                const area = c.area ? c.area.toLocaleString() + ' km²' : '無資料';
-                                const languages = c.languages ? Object.values(c.languages).slice(0, 2).join(', ') : '無資料';
-                                const currencies = c.currencies ? Object.values(c.currencies).map(curr => `${curr.name}(${curr.symbol})`).join(', ') : '無資料';
-                                const region = c.region || '無資料';
-
-                                const content = `
-                                    <div class="tooltip-content">
-                                        <h3>${zhName}</h3>
+                            const content = `
+                                <div class="custom-tooltip">
+                                    <div class="card-header">${zhName}</div>
+                                    <div class="card-body">
                                         <img src="${c.flags.png}">
-                                        <div class="info-item"><span class="data-label">🌍 所屬洲別</span><span class="data-value">${region}</span></div>
-                                        <div class="info-item"><span class="data-label">📍 首都</span><span class="data-value">${capital}</span></div>
-                                        <div class="info-item"><span class="data-label">👥 人口</span><span class="data-value">${c.population.toLocaleString()} 人</span></div>
-                                        <div class="info-item"><span class="data-label">📐 面積</span><span class="data-value">${area}</span></div>
-                                        <div class="info-item"><span class="data-label">🗣️ 語言</span><span class="data-value">${languages}</span></div>
-                                        <div class="info-item"><span class="data-label">💰 貨幣</span><span class="data-value" style="font-size:12px;">${currencies}</span></div>
-                                        <span class="hint">點擊查看繁體維基百科全文</span>
+                                        <div class="info-grid">
+                                            <div class="grid-item"><span class="grid-label">🌍 所屬區域</span><span class="grid-value">${region}</span></div>
+                                            <div class="grid-item"><span class="grid-label">🏛️ 首都</span><span class="grid-value">${capital}</span></div>
+                                            <div class="grid-item"><span class="grid-label">👥 人口數量</span><span class="grid-value">${(c.population / 10000).toFixed(0)} 萬</span></div>
+                                            <div class="grid-item"><span class="grid-label">💰 貨幣符號</span><span class="grid-value">${currencies}</span></div>
+                                            <div class="grid-item"><span class="grid-label">📐 土地面積</span><span class="grid-value">${(c.area / 10000).toFixed(1)} 萬k㎡</span></div>
+                                            <div class="grid-item"><span class="grid-label">⏱️ 時區</span><span class="grid-value">${c.timezones[0]}</span></div>
+                                        </div>
+                                        <span class="wiki-hint">點擊滑鼠左鍵查看維基百科全文</span>
                                     </div>
-                                `;
+                                </div>
+                            `;
 
-                                layer.bindTooltip(content, { sticky: true, className: 'custom-tooltip', opacity: 1, direction: 'top' }).openTooltip();
+                            layer.bindTooltip(content, { sticky: true, className: 'custom-tooltip', opacity: 1, direction: 'top' }).openTooltip();
 
-                            } catch (err) {
-                                layer.bindTooltip(`<div style="padding:10px;"><b>${engName}</b><br>資料獲取中...</div>`).openTooltip();
-                            }
-                        });
+                        } catch (err) {
+                            layer.bindTooltip(`<div style="padding:10px;"><b>${engName}</b></div>`).openTooltip();
+                        }
+                    });
 
-                        layer.on('mouseout', function () { this.setStyle({ fillOpacity: 0.05, weight: 1, color: "rgba(255,255,255,0.6)" }); });
-                        layer.on('click', function () { window.open(`https://zh.wikipedia.org/zh-tw/${encodeURIComponent(engName)}`, '_blank'); });
-                    }
-                }).addTo(map);
-            });
+                    layer.on('mouseout', function () { this.setStyle({ fillOpacity: 0.05, weight: 1, color: "rgba(255,255,255,0.6)" }); });
+                    layer.on('click', function () { window.open(`https://zh.wikipedia.org/zh-tw/${encodeURIComponent(engName)}`, '_blank'); });
+                }
+            }).addTo(map);
+        });
     </script>
 </body>
 </html>
