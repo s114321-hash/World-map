@@ -9,7 +9,7 @@ async function updateInfoPanel(name) {
         const country = countryData[0];
 
         // 2. 抓取維基百科簡介 (中文版)
-        const wikiRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`);
+        const wikiRes = await fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`);
         const wikiData = await wikiRes.json();
         const historyText = wikiData.extract || "暫無維基百科介紹。";
 
