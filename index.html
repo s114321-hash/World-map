@@ -3,19 +3,15 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>全球地理資訊系統 - 繁體感應版</title>
+    <title>全球地理資訊系統 - 穩定修復版</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #001020; font-family: "Microsoft JhengHei", sans-serif; }
-        
-        /* 1. 地圖增亮濾鏡：解決地圖太暗的問題 */
-        .leaflet-tile-pane {
-            filter: brightness(1.1) contrast(1.1);
-        }
-
+        /* 確保背景不是全黑，給一點深藍色底，載入時比較自然 */
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #001a33; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
 
-        /* 2. 精緻化的自定義資訊框 */
+        .leaflet-tile-pane { filter: brightness(1.1) contrast(1.1); }
+
         .custom-tooltip {
             background: rgba(255, 255, 255, 0.98);
             border: 2px solid #3498db;
@@ -23,16 +19,72 @@
             padding: 12px;
             box-shadow: 0 10px 25px rgba(0,0,0,0.4);
             pointer-events: none;
-            transition: opacity 0.2s;
         }
         .tooltip-content { width: 190px; text-align: center; }
         .tooltip-content h3 { margin: 0 0 10px 0; color: #2c3e50; font-size: 19px; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
-        .tooltip-content img { width: 120px; border: 1px solid #eee; margin-bottom: 10px; border-radius: 5px; box-shadow: 0 2px 6px rgba(0,0,0,0.1); }
-        .tooltip-content p { margin: 5px 0; font-size: 14px; color: #444; text-align: left; line-height: 1.4; }
-        .data-label { font-weight: bold; color: #2980b9; }
-        .click-hint { color: #95a5a6; font-size: 11px; margin-top: 8px; border-top: 1px solid #eee; padding-top: 5px; display: block; }
+        .tooltip-content img { width: 120px; border: 1px solid #eee; margin-bottom: 10px; border-radius: 5px; }
+        .tooltip-content p { margin: 5px 0; font-size: 14px; color: #444; text-align: left; }
     </style>
 </head>
 <body>
 
     <div id="map"></div>
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    <script>
+        const bounds = L.latLngBounds(L.latLng(-85, -180), L.latLng(85, 180));
+
+        const map = L.map('map', {
+            center: [25, 0],
+            zoom: 3,
+            minZoom: 2,
+            maxBounds: bounds,
+            maxBoundsViscosity: 1.0,
+            worldCopyJump: false
+        });
+
+        // 使用 Esri 衛星圖，這是目前最穩定的圖層來源
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            noWrap: true,
+            bounds: bounds,
+            attribution: 'Esri'
+        }).addTo(map);
+
+        // 換用這個網址，這是由 OpenStreetMap 社群維護、更適合 HTTPS 環境的全球邊界資料
+        const geojsonUrl = 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson';
+
+        fetch(geojsonUrl)
+            .then(res => {
+                if (!res.ok) throw new Error('網路回應不正確');
+                return res.json();
+            })
+            .then(data => {
+                L.geoJSON(data, {
+                    style: {
+                        color: "rgba(255,255,255,0.6)",
+                        weight: 1,
+                        fillColor: "#3498db",
+                        fillOpacity: 0.1
+                    },
+                    onEachFeature: function (feature, layer) {
+                        const engName = feature.properties.ADMIN || feature.properties.name;
+
+                        layer.on('mouseover', async function (e) {
+                            this.setStyle({ fillOpacity: 0.4, weight: 2, color: "#f1c40f" });
+
+                            try {
+                                const res = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(engName)}?fullText=true`);
+                                const cData = await res.json();
+                                const c = cData[0];
+                                const zhName = c.translations.zho ? c.translations.zho.common : engName;
+
+                                const content = `
+                                    <div class="tooltip-content">
+                                        <h3>${zhName}</h3>
+                                        <img src="${c.flags.png}">
+                                        <p><b>📍 首都：</b>${c.capital ? c.capital[0] : '無資料'}</p>
+                                        <p><b>👥 人口：</b>${c.population.toLocaleString()} 人</p>
+                                    </div>
+                                `;
+                                layer.bindTooltip(content, { sticky: true, className: 'custom-tooltip', direction: 'top' }).openTooltip();
+                            } catch (err)
