@@ -3,65 +3,18 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>互動世界地圖</title>
+    <title>全球地理資訊探索系統</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
 
-        /* 資訊卡樣式 (點擊國家後彈出) */
-        .info-card {
-            max-width: 280px;
-            text-align: left;
-            padding: 5px;
-        }
-        .info-card h3 {
-            margin-top: 5px;
-            margin-bottom: 10px;
-            color: #2c3e50;
-            font-size: 1.3em;
-            border-bottom: 2px solid #3498db;
-            padding-bottom: 5px;
-        }
-        .info-card img.flag {
-            width: 100%;
-            height: auto;
-            border: 1px solid #ddd;
-            margin-bottom: 10px;
-            border-radius: 4px;
-        }
-        .info-card p {
-            margin: 5px 0;
-            font-size: 0.9em;
-            color: #555;
-            line-height: 1.5;
-        }
-        .info-card a.wiki-link {
-            display: block;
-            background-color: #3498db;
-            color: white !important; /* !important 確保覆蓋 Leaflet 預設樣式 */
-            padding: 8px 10px;
-            text-align: center;
-            text-decoration: none;
-            border-radius: 5px;
-            margin-top: 15px;
-            font-weight: bold;
-        }
-        .info-card a.wiki-link:hover {
-            background-color: #2980b9;
-        }
-
-        /* Leaflet 彈出視窗調整 */
-        .leaflet-popup-content-wrapper {
-            border-radius: 8px;
-            padding: 1px; /* 調整內邊距 */
-        }
-        .leaflet-popup-content {
-            margin: 0;
-        }
-        .leaflet-popup-tip {
-            background: white;
-        }
+        /* 資訊卡樣式 */
+        .info-card { max-width: 280px; text-align: left; }
+        .info-card h3 { margin: 5px 0; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        .info-card img.flag { width: 100%; height: auto; border: 1px solid #ddd; margin: 10px 0; border-radius: 4px; }
+        .info-card p { margin: 5px 0; font-size: 14px; color: #555; line-height: 1.5; }
+        .wiki-link { display: block; background: #3498db; color: white !important; padding: 8px; text-align: center; text-decoration: none; border-radius: 5px; margin-top: 10px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -70,14 +23,86 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. 初始化地圖：設定地圖中心、縮放和範圍限制
+        // 1. 初始化地圖
         const map = L.map('map', {
-            center: [20, 0], // 地圖中心點 (緯度, 經度)
-            zoom: 3,         // 初始縮放級別
-            maxBounds: [[-90, -180], [90, 180]], // 限制地圖邊界，防止重複滾動
-            maxBoundsViscosity: 1.0, // 邊界彈性
-            zoomControl: false,      // 隱藏縮放按鈕，讓畫面更簡潔
-            worldCopyJump: false     // 防止地圖在左右方向重複顯示
+            center: [20, 0],
+            zoom: 3,
+            maxBounds: [[-90, -180], [90, 180]],
+            worldCopyJump: true
         });
 
-        // 2. 載入衛星底圖：使用 Es
+        // 2. 衛星底圖
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
+
+        // 3. 載入全球 200+ 國家的邊界數據 (使用穩定 CDN)
+        const geojsonUrl = 'https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson';
+
+        fetch(geojsonUrl)
+            .then(res => res.json())
+            .then(data => {
+                L.geoJSON(data, {
+                    style: {
+                        color: "white",
+                        weight: 0.8,
+                        fillColor: "#3498db",
+                        fillOpacity: 0.05
+                    },
+                    onEachFeature: function (feature, layer) {
+                        // 抓取國家名稱
+                        const countryName = feature.properties.ADMIN || feature.properties.name;
+
+                        // 互動效果
+                        layer.on('mouseover', function() {
+                            this.setStyle({ fillOpacity: 0.3 });
+                            this.bindTooltip(countryName).openTooltip();
+                        });
+                        layer.on('mouseout', function() {
+                            this.setStyle({ fillOpacity: 0.05 });
+                        });
+
+                        // 點擊事件：獲取全球資訊
+                        layer.on('click', async function(e) {
+                            const popup = L.popup({ className: 'info-card' })
+                                .setLatLng(e.latlng)
+                                .setContent(`<div><h3>${countryName}</h3><p>⏳ 正在調閱全球資料庫...</p></div>`)
+                                .openOn(map);
+
+                            try {
+                                // 同時向 RestCountries 抓國旗、向 Wikipedia 抓簡介
+                                const [cRes, wRes] = await Promise.all([
+                                    fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(countryName)}?fullText=true`),
+                                    fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(countryName)}`)
+                                ]);
+
+                                const cData = (await cRes.json())[0];
+                                const wData = await wRes.json();
+
+                                // 顯示中文名稱（如果有的話），否則用英文
+                                const displayName = cData.translations.zho ? cData.translations.zho.common : countryName;
+
+                                popup.setContent(`
+                                    <div class="info-card">
+                                        <h3>${displayName}</h3>
+                                        <img src="${cData.flags.png}" class="flag">
+                                        <p><b>🏛️ 首都：</b> ${cData.capital ? cData.capital[0] : '無資料'}</p>
+                                        <p><b>👥 人口：</b> ${cData.population.toLocaleString()} 人</p>
+                                        <p>${wData.extract ? wData.extract.substring(0, 120) + '...' : '點擊下方連結查看詳細介紹。'}</p>
+                                        <a href="https://zh.wikipedia.org/wiki/${encodeURIComponent(displayName)}" target="_blank" class="wiki-link">閱讀百科全文</a>
+                                    </div>
+                                `);
+                            } catch (error) {
+                                popup.setContent(`
+                                    <div class="info-card">
+                                        <h3>${countryName}</h3>
+                                        <p>無法取得自動摘要，建議直接查看百科。</p>
+                                        <a href="https://zh.wikipedia.org/wiki/${encodeURIComponent(countryName)}" target="_blank" class="wiki-link">前往維基百科</a>
+                                    </div>
+                                `);
+                            }
+                        });
+                    }
+                }).addTo(map);
+            });
+    </script>
+</body>
+</html>
