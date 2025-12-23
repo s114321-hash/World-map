@@ -2,71 +2,84 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>我的互動地圖</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>我的互動世界地圖</title>
     <style>
-        body { margin: 0; padding: 0; text-align: center; background-color: #f0f0f0; }
-        
-        /* 讓地圖照片容器居中並具備相對定位 */
-        .map-container {
+        body { 
+            margin: 0; 
+            padding: 0; 
+            background-color: #f4f4f4; 
+            display: flex; 
+            flex-direction: column; 
+            align-items: center; 
+            font-family: "Microsoft JhengHei", sans-serif; 
+        }
+
+        h1 { margin: 20px 0; color: #2c3e50; }
+
+        /* 圖片容器：這是關鍵，必須是 relative 座標才對得準 */
+        .map-wrapper {
             position: relative;
             display: inline-block;
-            margin-top: 50px;
+            max-width: 95%; /* 避免圖片超出螢幕 */
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            background: #fff;
+            line-height: 0; /* 防止圖片下方出現神祕空白 */
         }
 
-        /* 設定你的地圖照片尺寸 */
         .map-image {
-            display: block;
-            width: 1000px; /* 你可以根據照片調整寬度 */
+            width: 100%;
             height: auto;
-            border: 5px solid #fff;
-            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+            display: block;
         }
 
-        /* 定義點擊區域（透明按鈕） */
+        /* 點擊區域的基礎樣式 */
         .hotspot {
             position: absolute;
-            background: rgba(255, 0, 0, 0.3); /* 暫時設為紅色半透明，方便你對位置，確定後改為 0 */
+            background: rgba(255, 0, 0, 0.4); /* 這裡是紅色半透明，讓你調位置用的 */
             border-radius: 50%;
             cursor: pointer;
-            transition: transform 0.2s;
+            z-index: 10;
+            transform: translate(-50%, -50%); /* 讓座標中心點在圓心 */
+            transition: background 0.3s, transform 0.2s;
         }
 
         .hotspot:hover {
-            background: rgba(255, 255, 0, 0.5); /* 滑鼠移上去變黃色 */
-            transform: scale(1.1);
+            background: rgba(255, 255, 0, 0.6);
+            transform: translate(-50%, -50%) scale(1.2);
         }
 
-        /* --- 這裡開始設定每個國家的位置 --- */
-        
-        /* 日本的位置範例 (需要根據你的照片手動調整 top 和 left) */
-        #japan-link {
-            top: 30%;    /* 距離照片頂部多少 % */
-            left: 85%;   /* 距離照片左邊多少 % */
-            width: 40px; /* 感應區域大小 */
+        /* --- 國家位置座標 (請根據你的地圖手動修改這裡的 % ) --- */
+
+        #japan {
+            top: 30%;    /* 垂直位置：從頂部算起 */
+            left: 85%;   /* 水平位置：從左側算起 */
+            width: 50px; /* 圓圈大小 */
+            height: 50px;
+        }
+
+        #taiwan {
+            top: 45%;
+            left: 82%;
+            width: 40px;
             height: 40px;
         }
 
-        /* 台灣的位置範例 */
-        #taiwan-link {
-            top: 45%;
-            left: 82%;
-            width: 30px;
-            height: 30px;
-        }
+        .hint { margin-top: 20px; color: #666; font-size: 14px; }
     </style>
 </head>
 <body>
 
-    <h1>🌍 點擊地圖國家探索</h1>
+    <h1>🌍 點擊地圖國家探索資訊</h1>
 
-    <div class="map-container">
-        <img src="world-map.jpg" alt="世界地圖" class="map-image">
+    <div class="map-wrapper">
+        <img src="map.png" alt="世界地圖" class="map-image">
 
-        <div id="japan-link" class="hotspot" onclick="location.href='https://zh.wikipedia.org/wiki/日本';"></div>
-        <div id="taiwan-link" class="hotspot" onclick="location.href='https://zh.wikipedia.org/wiki/台灣';"></div>
+        <div id="japan" class="hotspot" title="日本" onclick="location.href='https://zh.wikipedia.org/wiki/日本';"></div>
+        <div id="taiwan" class="hotspot" title="台灣" onclick="location.href='https://zh.wikipedia.org/wiki/台灣';"></div>
     </div>
 
-    <p>提示：滑鼠移到國家上會變色，點擊即可進入介紹頁面。</p>
+    <p class="hint">提示：目前紅色圓圈是為了讓你對準位置。對準後，將程式碼中的 rgba(255, 0, 0, 0.4) 最後一個數字改為 0 即可隱形。</p>
 
 </body>
 </html>
