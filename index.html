@@ -2,78 +2,62 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>互動衛星地圖</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>國家詳細資訊</title>
     <style>
-        /* 讓地圖滿版顯示，跟目標網站一模一樣 */
-        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
-        #map { height: 100vh; width: 100%; }
-
-        /* 滑鼠移上去的標籤樣式 */
-        .leaflet-tooltip {
-            background: rgba(0, 0, 0, 0.8) !important;
-            color: #fff !important;
-            border: 1px solid #777 !important;
-            font-size: 14px !important;
-            font-weight: bold;
-        }
+        body { font-family: sans-serif; line-height: 1.6; max-width: 800px; margin: 0 auto; padding: 40px; background: #f9f9f9; }
+        .back-btn { display: inline-block; margin-bottom: 20px; color: #3498db; text-decoration: none; font-weight: bold; }
+        .flag { width: 200px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); margin-bottom: 20px; }
+        h1 { color: #2c3e50; font-size: 3em; margin-bottom: 10px; }
+        .info-card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        .content { margin-top: 30px; font-size: 1.1em; color: #444; }
     </style>
 </head>
 <body>
+    <a href="index.html" class="back-btn">⬅ 返回地圖</a>
+    <div id="loading">載入中...</div>
+    <div id="content-area" style="display:none;">
+        <img id="flag" class="flag" src="" alt="國旗">
+        <h1 id="country-name">國家名稱</h1>
+        <div class="info-card">
+            <p><b>首都：</b> <span id="capital"></span></p>
+            <p><b>人口：</b> <span id="population"></span></p>
+        </div>
+        <div class="content">
+            <h3>📖 歷史與簡介</h3>
+            <p id="wiki-text"></p>
+        </div>
+    </div>
 
-    <div id="map"></div>
-
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. 建立地圖：預設看到全球，背景設為黑色
-        const map = L.map('map', {
-            center: [20, 0],
-            zoom: 3,
-            zoomControl: false // 隱藏按鈕，讓介面乾淨
-        });
+        // 取得網址上的國家名稱
+        const urlParams = new URLSearchParams(window.location.search);
+        const countryName = urlParams.get('country');
 
-        // 2. 直接呼叫「衛星地圖圖層」：這就是你要的圖片效果，不需要上傳照片
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
-            attribution: 'Tiles &copy; Esri'
-        }).addTo(map);
+        async function loadData() {
+            try {
+                // 1. 抓取基本資料
+                const res = await fetch(`https://restcountries.com/v3.1/name/${countryName}?fullText=true`);
+                const cData = await res.json();
+                const country = cData[0];
 
-        // 3. 讀取全世界的國家邊界數據
-        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-            .then(res => res.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    style: {
-                        color: "rgba(255,255,255,0.4)", // 國界線：半透明白色
-                        weight: 1,
-                        fillColor: "transparent",       // 平時透明
-                        fillOpacity: 0
-                    },
-                    onEachFeature: function (feature, layer) {
-                        const name = feature.properties.ADMIN;
+                // 2. 抓取維基百科簡介
+                const wRes = await fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(countryName)}`);
+                const wData = await wRes.json();
 
-                        // 當滑鼠移入：變換顏色並顯示國名
-                        layer.on('mouseover', function() {
-                            this.setStyle({
-                                fillColor: "#3498db",
-                                fillOpacity: 0.3
-                            });
-                            this.bindTooltip(name, { direction: "top", sticky: true }).openTooltip();
-                        });
+                // 填入內容
+                document.getElementById('flag').src = country.flags.png;
+                document.getElementById('country-name').innerText = countryName;
+                document.getElementById('capital').innerText = country.capital ? country.capital[0] : '無資料';
+                document.getElementById('population').innerText = country.population.toLocaleString() + ' 人';
+                document.getElementById('wiki-text').innerText = wData.extract || '暫無詳細介紹內容。';
 
-                        // 當滑鼠移出：恢復透明
-                        layer.on('mouseout', function() {
-                            this.setStyle({ fillOpacity: 0 });
-                        });
-
-                        // 當點擊國家：直接跳轉到維基百科
-                        layer.on('click', function() {
-                            const wikiUrl = `https://zh.wikipedia.org/wiki/${encodeURIComponent(name)}`;
-                            window.location.href = wikiUrl;
-                        });
-                    }
-                }).addTo(map);
-            });
+                document.getElementById('loading').style.display = 'none';
+                document.getElementById('content-area').style.display = 'block';
+            } catch (e) {
+                document.getElementById('loading').innerText = '找不到該國家資料。';
+            }
+        }
+        loadData();
     </script>
 </body>
 </html>
