@@ -1,37 +1,40 @@
-<!DOCTYPE html>
-<html>
-<head>
-    <title>我的互動世界地圖</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-    <style>
-        #map { height: 600px; width: 100%; }
-        body { font-family: sans-serif; }
-    </style>
-</head>
-<body>
-    <h1>點擊國家查看資訊</h1>
-    <div id="map"></div>
+async function updateInfoPanel(name) {
+    const panel = document.getElementById('info-panel');
+    panel.innerHTML = `<p>正在從維基百科調閱 ${name} 的深度資料...</p>`;
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        // 1. 初始化地圖，中心點設在座標 [20, 0]，縮放等級為 2
-        var map = L.map('map').setView([20, 0], 2);
+    try {
+        // 1. 同時抓取 國家基本資料 API 和 維基百科 API
+        const countryRes = await fetch(`https://restcountries.com/v3.1/name/${name}?fullText=true`);
+        const countryData = await countryRes.json();
+        const country = countryData[0];
 
-        // 2. 載入地圖樣式 (使用 OpenStreetMap)
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        // 2. 抓取維基百科簡介 (中文版)
+        const wikiRes = await fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`);
+        const wikiData = await wikiRes.json();
+        const historyText = wikiData.extract || "暫無維基百科介紹。";
 
-        // 3. 取得世界各國邊界的 GeoJSON 資料 (這裡使用一個網路上的開源資料)
-        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-            .then(response => response.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    onEachFeature: function (feature, layer) {
-                        // 當滑鼠點擊時顯示國家名稱
-                        layer.bindPopup("國家名稱: " + feature.properties.ADMIN);
-                    },
-                    style: { color: "#3388ff", weight: 1, fillOpacity: 0.2 }
-                }).addTo(map);
-            });
-    </script>
-</body>
-</html>
+        // 3. 顯示到介面上
+        panel.innerHTML = `
+            <div class="country-title">
+                <img class="country-flag" src="${country.flags.png}">
+                <h2>${name}</h2>
+            </div>
+            
+            <div class="data-card">
+                <h3>📍 基本資訊</h3>
+                <p><b>正式國名：</b> ${country.name.official}</p>
+                <p><b>首都：</b> ${country.capital ? country.capital[0] : "無"}</p>
+                <p><b>人口：</b> ${country.population.toLocaleString()} 人</p>
+                <p><b>貨幣：</b> ${Object.values(country.currencies)[0].name}</p>
+            </div>
+
+            <div class="history-box">
+                <h3>📜 維基百科介紹</h3>
+                <p>${historyText}</p>
+                <a href="${wikiData.content_urls?.desktop.page || '#'}" target="_blank">閱讀更多...</a>
+            </div>
+        `;
+    } catch (error) {
+        panel.innerHTML = `<h3>${name}</h3><p>此國家資料抓取失敗，可能是名稱對應問題。</p>`;
+    }
+}
