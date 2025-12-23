@@ -2,70 +2,71 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>我的世界地圖</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <title>我的互動地圖</title>
     <style>
-        body { margin: 0; display: flex; flex-direction: column; height: 100vh; font-family: sans-serif; }
-        #header { background: #2c3e50; color: white; padding: 10px; text-align: center; }
-        #main { display: flex; flex: 1; overflow: hidden; }
-        #map { flex: 2; }
-        #info-panel { flex: 1; padding: 20px; overflow-y: auto; background: #fff; border-left: 1px solid #ccc; }
-        .country-flag { width: 100px; border: 1px solid #ddd; }
+        body { margin: 0; padding: 0; text-align: center; background-color: #f0f0f0; }
+        
+        /* 讓地圖照片容器居中並具備相對定位 */
+        .map-container {
+            position: relative;
+            display: inline-block;
+            margin-top: 50px;
+        }
+
+        /* 設定你的地圖照片尺寸 */
+        .map-image {
+            display: block;
+            width: 1000px; /* 你可以根據照片調整寬度 */
+            height: auto;
+            border: 5px solid #fff;
+            box-shadow: 0 0 20px rgba(0,0,0,0.2);
+        }
+
+        /* 定義點擊區域（透明按鈕） */
+        .hotspot {
+            position: absolute;
+            background: rgba(255, 0, 0, 0.3); /* 暫時設為紅色半透明，方便你對位置，確定後改為 0 */
+            border-radius: 50%;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .hotspot:hover {
+            background: rgba(255, 255, 0, 0.5); /* 滑鼠移上去變黃色 */
+            transform: scale(1.1);
+        }
+
+        /* --- 這裡開始設定每個國家的位置 --- */
+        
+        /* 日本的位置範例 (需要根據你的照片手動調整 top 和 left) */
+        #japan-link {
+            top: 30%;    /* 距離照片頂部多少 % */
+            left: 85%;   /* 距離照片左邊多少 % */
+            width: 40px; /* 感應區域大小 */
+            height: 40px;
+        }
+
+        /* 台灣的位置範例 */
+        #taiwan-link {
+            top: 45%;
+            left: 82%;
+            width: 30px;
+            height: 30px;
+        }
     </style>
 </head>
 <body>
-    <div id="header"><h1>🌍 互動世界地圖</h1></div>
-    <div id="main">
-        <div id="map"></div>
-        <div id="info-panel"><p>點擊地圖上的國家來查看資訊...</p></div>
+
+    <h1>🌍 點擊地圖國家探索</h1>
+
+    <div class="map-container">
+        <img src="world-map.jpg" alt="世界地圖" class="map-image">
+
+        <div id="japan-link" class="hotspot" onclick="location.href='https://zh.wikipedia.org/wiki/日本';"></div>
+        <div id="taiwan-link" class="hotspot" onclick="location.href='https://zh.wikipedia.org/wiki/台灣';"></div>
     </div>
 
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script>
-        const map = L.map('map').setView([20, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+    <p>提示：滑鼠移到國家上會變色，點擊即可進入介紹頁面。</p>
 
-        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
-            .then(res => res.json())
-            .then(data => {
-                L.geoJSON(data, {
-                    style: { color: "#3498db", weight: 1, fillOpacity: 0.2 },
-                    onEachFeature: function (feature, layer) {
-                        layer.on('click', function (e) {
-                            map.fitBounds(e.target.getBounds());
-                            updatePanel(feature.properties.ADMIN);
-                        });
-                    }
-                }).addTo(map);
-            });
-
-        async function updatePanel(name) {
-            const panel = document.getElementById('info-panel');
-            panel.innerHTML = `<h2>${name}</h2><p>讀取中...</p>`;
-
-            try {
-                // 抓取國家基本資料
-                const res = await fetch(`https://restcountries.com/v3.1/name/${name}?fullText=true`);
-                const cData = await res.json();
-                const country = cData[0];
-
-                // 抓取維基百科 (英文 API 比較穩定)
-                const wRes = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(name)}`);
-                const wData = await wRes.json();
-
-                panel.innerHTML = `
-                    <img class="country-flag" src="${country.flags.png}">
-                    <h2>${name}</h2>
-                    <p><b>首都:</b> ${country.capital ? country.capital[0] : 'N/A'}</p>
-                    <p><b>人口:</b> ${country.population.toLocaleString()}</p>
-                    <hr>
-                    <h3>📜 歷史與介紹</h3>
-                    <p>${wData.extract || '暫無資料'}</p>
-                `;
-            } catch (err) {
-                panel.innerHTML = `<h2>${name}</h2><p>無法取得詳細資料。</p>`;
-            }
-        }
-    </script>
 </body>
 </html>
