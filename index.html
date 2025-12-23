@@ -2,17 +2,18 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>全球地理資訊探索</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
-        /* 彈出視窗精美樣式 */
-        .info-popup { max-width: 250px; }
-        .info-popup img { width: 100%; border-radius: 4px; margin-bottom: 8px; border: 1px solid #ddd; }
-        .info-popup h3 { margin: 5px 0; color: #2c3e50; }
-        .info-popup p { font-size: 13px; line-height: 1.5; color: #555; margin: 5px 0; }
+        
+        /* 資訊彈窗樣式優化 */
+        .info-popup { min-width: 250px; }
+        .info-popup img { width: 100%; border-radius: 4px; border: 1px solid #ddd; margin-top: 8px; }
+        .info-popup h2 { margin: 5px 0; color: #2c3e50; font-size: 20px; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
+        .info-popup p { font-size: 14px; line-height: 1.6; color: #444; margin: 8px 0; }
+        .data-label { font-weight: bold; color: #2980b9; }
         .wiki-btn { display: block; text-align: center; background: #3498db; color: white !important; padding: 8px; border-radius: 4px; text-decoration: none; margin-top: 10px; font-weight: bold; }
     </style>
 </head>
@@ -22,39 +23,54 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. 初始化地圖：設定不重複、不亂跑
-        const map = L.map('map', {
-            center: [20, 0],
-            zoom: 2,
-            maxBounds: [[-90, -180], [90, 180]],
-            maxBoundsViscosity: 1.0,
-            zoomControl: false
-        });
+        // 1. 初始化地圖
+        const map = L.map('map', { center: [20, 10], zoom: 3, worldCopyJump: true });
 
-        // 2. 衛星底圖 (Esri 官方穩定服務)
+        // 2. 衛星底圖
         L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
 
-        // 3. 使用 Natural Earth 提供的精確地理資料 (欄位統一為 NAME)
-        const geoDataUrl = 'https://raw.githubusercontent.com/nvkelso/natural-earth-vector/master/geojson/ne_110m_admin_0_countries.geojson';
-
-        fetch(geoDataUrl)
+        // 3. 載入邊界數據並處理資訊
+        fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
             .then(res => res.json())
             .then(data => {
                 L.geoJSON(data, {
-                    style: { color: "white", weight: 0.5, fillOpacity: 0.05 },
+                    style: { color: "rgba(255,255,255,0.5)", weight: 1, fillOpacity: 0.1, fillColor: "#3498db" },
                     onEachFeature: function (feature, layer) {
-                        // 這是核心修復：統一抓取 NAME 欄位，這在該資料庫中絕對存在
-                        const countryName = feature.properties.NAME || feature.properties.name || "Unknown";
-
-                        layer.on('mouseover', function() { this.setStyle({ fillOpacity: 0.3, fillColor: "#00d4ff" }); });
-                        layer.on('mouseout', function() { this.setStyle({ fillOpacity: 0.05 }); });
+                        const engName = feature.properties.ADMIN;
 
                         layer.on('click', async function(e) {
-                            // 建立一個暫時的 Loading 視窗
+                            // 彈出「載入中」
                             const popup = L.popup({ className: 'info-popup' })
                                 .setLatLng(e.latlng)
-                                .setContent(`<div>正在探索 ${countryName}...</div>`)
+                                .setContent(`<div>正在連線至百科資料庫...</div>`)
                                 .openOn(map);
 
                             try {
-                                // 同時向
+                                // 抓取國家詳細資料 (使用更穩定的 API)
+                                const cRes = await fetch(`https://restcountries.com/v3.1/name/${encodeURIComponent(engName)}?fullText=true`);
+                                const cData = await cRes.json();
+                                const country = cData[0];
+
+                                // 抓取維基百科中文摘要
+                                // 我們先嘗試抓中文，如果抓不到再顯示英文
+                                const wRes = await fetch(`https://zh.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(engName)}`);
+                                const wData = await wRes.json();
+
+                                popup.setContent(`
+                                    <h2>${country.translations.zho ? country.translations.zho.official : engName}</h2>
+                                    <img src="${country.flags.png}" alt="國旗">
+                                    <p><span class="data-label">首都：</span>${country.capital ? country.capital[0] : '無資料'}</p>
+                                    <p><span class="data-label">人口：</span>${country.population.toLocaleString()} 人</p>
+                                    <p><span class="data-label">簡介：</span>${wData.extract ? wData.extract.substring(0, 100) + '...' : '點擊下方連結查看詳細資訊。'}</p>
+                                    <a href="https://zh.wikipedia.org/wiki/${encodeURIComponent(engName)}" target="_blank" class="wiki-btn">查看完整資訊</a>
+                                `);
+                            } catch (err) {
+                                popup.setContent(`<h3>${engName}</h3><p>暫時無法取得詳細內容，請直接訪問維基百科。</p><a href="https://zh.wikipedia.org/wiki/${encodeURIComponent(engName)}" target="_blank" class="wiki-btn">維基百科</a>`);
+                            }
+                        });
+                    }
+                }).addTo(map);
+            });
+    </script>
+</body>
+</html>
