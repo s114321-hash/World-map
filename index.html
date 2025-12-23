@@ -2,17 +2,66 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>全球地理資訊系統 - 最終修復版</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>互動世界地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; font-family: sans-serif; }
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; font-family: "Microsoft JhengHei", sans-serif; }
         #map { height: 100vh; width: 100%; }
-        /* 資訊視窗樣式 */
-        .info-card { width: 220px; font-family: "Microsoft JhengHei"; }
-        .info-card img { width: 100%; border-radius: 5px; margin-bottom: 10px; border: 1px solid #ddd; }
-        .info-card h3 { margin: 0 0 10px 0; color: #2c3e50; border-bottom: 2px solid #3498db; padding-bottom: 5px; }
-        .info-card p { font-size: 14px; margin: 5px 0; color: #444; }
-        .wiki-btn { display: block; background: #3498db; color: white !important; text-align: center; padding: 8px; border-radius: 5px; text-decoration: none; margin-top: 10px; font-weight: bold; }
+
+        /* 資訊卡樣式 (點擊國家後彈出) */
+        .info-card {
+            max-width: 280px;
+            text-align: left;
+            padding: 5px;
+        }
+        .info-card h3 {
+            margin-top: 5px;
+            margin-bottom: 10px;
+            color: #2c3e50;
+            font-size: 1.3em;
+            border-bottom: 2px solid #3498db;
+            padding-bottom: 5px;
+        }
+        .info-card img.flag {
+            width: 100%;
+            height: auto;
+            border: 1px solid #ddd;
+            margin-bottom: 10px;
+            border-radius: 4px;
+        }
+        .info-card p {
+            margin: 5px 0;
+            font-size: 0.9em;
+            color: #555;
+            line-height: 1.5;
+        }
+        .info-card a.wiki-link {
+            display: block;
+            background-color: #3498db;
+            color: white !important; /* !important 確保覆蓋 Leaflet 預設樣式 */
+            padding: 8px 10px;
+            text-align: center;
+            text-decoration: none;
+            border-radius: 5px;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .info-card a.wiki-link:hover {
+            background-color: #2980b9;
+        }
+
+        /* Leaflet 彈出視窗調整 */
+        .leaflet-popup-content-wrapper {
+            border-radius: 8px;
+            padding: 1px; /* 調整內邊距 */
+        }
+        .leaflet-popup-content {
+            margin: 0;
+        }
+        .leaflet-popup-tip {
+            background: white;
+        }
     </style>
 </head>
 <body>
@@ -21,54 +70,14 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 1. 直接建立地圖，並限制縮放範圍防止重複
+        // 1. 初始化地圖：設定地圖中心、縮放和範圍限制
         const map = L.map('map', {
-            center: [30, 130],
-            zoom: 4,
-            maxBounds: [[-90, -180], [90, 180]],
-            worldCopyJump: false
+            center: [20, 0], // 地圖中心點 (緯度, 經度)
+            zoom: 3,         // 初始縮放級別
+            maxBounds: [[-90, -180], [90, 180]], // 限制地圖邊界，防止重複滾動
+            maxBoundsViscosity: 1.0, // 邊界彈性
+            zoomControl: false,      // 隱藏縮放按鈕，讓畫面更簡潔
+            worldCopyJump: false     // 防止地圖在左右方向重複顯示
         });
 
-        // 2. 衛星底圖 (使用 Esri 穩定伺服器)
-        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}').addTo(map);
-
-        // 3. 內建核心資料：解決 undefined 與 抓不到資料的問題
-        // 這裡我先內建幾個點，保證你點了有介紹。
-        const data = [
-            { name: "Taiwan", zh: "臺灣", pos: [23.6, 121], flag: "https://flagcdn.com/w320/tw.png", pop: "2,357 萬", capital: "台北" },
-            { name: "Japan", zh: "日本", pos: [36, 138], flag: "https://flagcdn.com/w320/jp.png", pop: "1.25 億", capital: "東京" },
-            { name: "USA", zh: "美國", pos: [37, -95], flag: "https://flagcdn.com/w320/us.png", pop: "3.31 億", capital: "華盛頓" }
-        ];
-
-        data.forEach(country => {
-            // 在地圖上放一個明顯的發光圓圈
-            const marker = L.circleMarker(country.pos, {
-                radius: 15,
-                fillColor: "#00d4ff",
-                color: "#fff",
-                weight: 2,
-                opacity: 1,
-                fillOpacity: 0.8
-            }).addTo(map);
-
-            // 點擊後直接彈出介紹，不再跳轉，保證有內容！
-            marker.on('click', function(e) {
-                const content = `
-                    <div class="info-card">
-                        <img src="${country.flag}">
-                        <h3>${country.zh} (${country.name})</h3>
-                        <p><b>🏛️ 首都：</b>${country.capital}</p>
-                        <p><b>👥 人口：</b>${country.pop}</p>
-                        <p>這是一個美麗的國家，擁有豐富的文化與歷史。</p>
-                        <a href="https://zh.wikipedia.org/wiki/${encodeURIComponent(country.zh)}" target="_blank" class="wiki-btn">查看維基百科全文</a>
-                    </div>
-                `;
-                L.popup().setLatLng(e.latlng).setContent(content).openOn(map);
-            });
-
-            // 滑鼠移入提示
-            marker.bindTooltip(country.zh);
-        });
-    </script>
-</body>
-</html>
+        // 2. 載入衛星底圖：使用 Es
