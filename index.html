@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>世界國家探索地圖</title>
+    <title>互動衛星地圖</title>
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        /* 1. 確保地圖 100% 滿版，跟目標網站一樣 */
-        body, html { margin: 0; padding: 0; height: 100%; background: #000; overflow: hidden; }
+        /* 讓地圖滿版顯示，跟目標網站一模一樣 */
+        body, html { margin: 0; padding: 0; height: 100%; overflow: hidden; background: #000; }
         #map { height: 100vh; width: 100%; }
 
-        /* 2. 修改提示框樣式，讓它更有質感 */
+        /* 滑鼠移上去的標籤樣式 */
         .leaflet-tooltip {
             background: rgba(0, 0, 0, 0.8) !important;
             color: #fff !important;
-            border: 1px solid #555 !important;
+            border: 1px solid #777 !important;
             font-size: 14px !important;
-            padding: 5px 10px !important;
-            border-radius: 4px;
+            font-weight: bold;
         }
     </style>
 </head>
@@ -27,55 +26,50 @@
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     <script>
-        // 初始化地圖，設定在中間位置
+        // 1. 建立地圖：預設看到全球，背景設為黑色
         const map = L.map('map', {
-            center: [20, 10],
-            zoom: 2,
-            zoomControl: false // 隱藏縮放按鈕，讓視覺更乾淨
+            center: [20, 0],
+            zoom: 3,
+            zoomControl: false // 隱藏按鈕，讓介面乾淨
         });
 
-        // 換成最穩定的 CartoDB 衛星深色底圖，這跟目標網站最像
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-            attribution: '&copy; OpenStreetMap'
+        // 2. 直接呼叫「衛星地圖圖層」：這就是你要的圖片效果，不需要上傳照片
+        L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri'
         }).addTo(map);
 
-        // 載入各國邊界
+        // 3. 讀取全世界的國家邊界數據
         fetch('https://raw.githubusercontent.com/datasets/geo-countries/master/data/countries.geojson')
             .then(res => res.json())
             .then(data => {
                 L.geoJSON(data, {
-                    style: function(feature) {
-                        return {
-                            fillColor: "#3498db",
-                            weight: 1,
-                            opacity: 1,
-                            color: '#555', // 國界線顏色
-                            fillOpacity: 0.1 // 平時幾乎透明
-                        };
+                    style: {
+                        color: "rgba(255,255,255,0.4)", // 國界線：半透明白色
+                        weight: 1,
+                        fillColor: "transparent",       // 平時透明
+                        fillOpacity: 0
                     },
                     onEachFeature: function (feature, layer) {
                         const name = feature.properties.ADMIN;
 
-                        // 滑鼠移入：區塊變亮 + 顯示名字
-                        layer.on('mouseover', function (e) {
+                        // 當滑鼠移入：變換顏色並顯示國名
+                        layer.on('mouseover', function() {
                             this.setStyle({
-                                fillOpacity: 0.5,
-                                fillColor: '#f1c40f' // 移上去變金色
+                                fillColor: "#3498db",
+                                fillOpacity: 0.3
                             });
-                            this.bindTooltip(name).openTooltip();
+                            this.bindTooltip(name, { direction: "top", sticky: true }).openTooltip();
                         });
 
-                        // 滑鼠移出：恢復
-                        layer.on('mouseout', function (e) {
-                            this.setStyle({
-                                fillOpacity: 0.1,
-                                fillColor: '#3498db'
-                            });
+                        // 當滑鼠移出：恢復透明
+                        layer.on('mouseout', function() {
+                            this.setStyle({ fillOpacity: 0 });
                         });
 
-                        // 點擊：直接跳轉到維基百科 (或你想要的介紹頁)
-                        layer.on('click', function () {
-                            window.location.href = `https://zh.wikipedia.org/wiki/${encodeURIComponent(name)}`;
+                        // 當點擊國家：直接跳轉到維基百科
+                        layer.on('click', function() {
+                            const wikiUrl = `https://zh.wikipedia.org/wiki/${encodeURIComponent(name)}`;
+                            window.location.href = wikiUrl;
                         });
                     }
                 }).addTo(map);
